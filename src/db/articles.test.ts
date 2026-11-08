@@ -97,7 +97,7 @@ describe("db/articles", () => {
         title: "Read Test",
         contentMarkdown: "Content",
       }).row;
-      
+
       expect(inserted.isRead).toBe(false);
       expect(inserted.isSaved).toBe(false);
 
@@ -114,7 +114,7 @@ describe("db/articles", () => {
         title: "Save Test",
         contentMarkdown: "Content",
       }).row;
-      
+
       expect(inserted.isRead).toBe(false);
       expect(inserted.isSaved).toBe(false);
 
@@ -133,15 +133,15 @@ describe("db/articles", () => {
       db.insert(articles).values({
         url: "url1", contentMarkdown: "c", isSaved: false, ingestedAt: oldDate
       }).run();
-      
+
       db.insert(articles).values({
         url: "url2", contentMarkdown: "c", isSaved: true, ingestedAt: oldDate
       }).run();
-      
+
       db.insert(articles).values({
         url: "url3", contentMarkdown: "c", isSaved: false, ingestedAt: recentDate
       }).run();
-      
+
       db.insert(articles).values({
         url: "url4", contentMarkdown: "c", isSaved: true, ingestedAt: recentDate
       }).run();
@@ -223,6 +223,22 @@ describe("db/articles", () => {
       expect("contentMarkdown" in results[0]).toBe(false);
       expect("contentMarkdown" in results[1]).toBe(false);
       expect("contentMarkdown" in results[2]).toBe(false);
+    });
+
+    it("respects the limit option when querying sidebar articles", () => {
+      for (let i = 1; i <= 5; i++) {
+        db.insert(articles).values({
+          url: `https://example.com/limit-${i}`,
+          title: `Limit Item ${i}`,
+          contentMarkdown: `# Body ${i}`,
+          ingestedAt: `2026-09-0${i}T10:00:00Z`,
+        }).run();
+      }
+
+      const limited = listArticles(db, { limit: 2 });
+      expect(limited).toHaveLength(2);
+      expect(limited[0].title).toBe("Limit Item 5");
+      expect(limited[1].title).toBe("Limit Item 4");
     });
   });
 

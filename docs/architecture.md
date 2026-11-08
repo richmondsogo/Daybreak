@@ -51,8 +51,8 @@ The Command-Line Interface (CLI) runner executes the ingestion process in `src/c
 1. **Email Discovery**: Connects to Gmail over IMAP using `ImapflowClient` and searches for digest emails within `INGEST_LOOKBACK_DAYS`.
 2. **Digest Parsing**: Parses raw MIME email buffers using `mailparser` in `parseDigest()`. It extracts article URLs, authors, and email snippets.
 3. **Idempotency Check**: Skips previously processed emails by checking `processedEmails` using their unique `messageId` (see ADR 0009).
-4. **Resilient Fetcher Chain**: Fetches article HTML using `fetchArticleHtml()`. It attempts a direct fetch to Medium first. If Medium returns a truncated paywalled preview, it falls back to configured Freedium mirror URLs (see ADR 0004 and ADR 0008). Freedium is an open-source proxy service that renders paywalled Medium articles. If all network fetches fail, it falls back to the email snippet preview.
-5. **Content Extraction and Cleaning**: Converts HTML to markdown using Mozilla Readability and Turndown in `extractArticleContent()`. It strips unwanted Medium page chrome using `cleanArticleMarkdown()`.
+4. **Resilient Fetcher Chain**: Fetches article HTML using `fetchArticleHtml()`. It attempts a direct fetch to Medium first. If Medium returns a truncated paywalled preview, it falls back to configured Freedium mirror URLs (see ADR 0004 and ADR 0008). Ingestion runs concurrently across articles with bounded concurrency (`ARTICLE_FETCH_CONCURRENCY`, default 3) and politeness delays (`ARTICLE_FETCH_DELAY_MS`) per worker.
+5. **Content Extraction and Single-Pass Cleaning**: Converts HTML to markdown using Mozilla Readability and Turndown in `extractArticleContent()`. DOM traversal is optimized via a single-pass `TreeWalker` over text nodes to remove Freedium beta banners without $O(N \times \text{depth})$ subtree rescanning. `cleanArticleMarkdown()` is executed once during extraction, and the resulting `cleanedMarkdown` is attached to `ExtractedArticle` for reuse during residual chrome detection.
 6. **Database Persistence**: Writes normalized records into the `articles` SQLite table with an `ingestedAt` timestamp (see ADR 0006).
 
 ### 2. Subtitle Extraction System (`src/ingest/extractSubtitle.ts`)
@@ -83,8 +83,8 @@ The reader handles images through a two-part resilient pipeline:
 
 Data persistence uses SQLite with better-sqlite3 and Drizzle Object-Relational Mapping (ORM) (see ADR 0002).
 
-- **Concurrency via WAL**: SQLite operates in Write-Ahead Logging (`PRAGMA journal_mode = WAL`). WAL mode enables concurrent reader processes in Next.js while CLI background workers write new articles.
-- **Connection Management in Web Process**: The web server reuses a single cached database connection across requests. `getDb()` caches the instance on `globalThis.__mediumReaderDb` in `src/db/instance.ts` (see ADR 0010). This prevents connection leaks during rendering and server actions.
+- **Concurrency via WAL & Indexes**: SQLite operates in Write-Ahead Logging (`PRAGMA journal_mode = WAL`). The `articles` table features a dedicated B-tree index on `ingestedAt` (`articles_ingested_at_idx`) enabling instant reverse-chronological sorting. Sidebar queries are bounded to `DEFAULT_SIDEBAR_ARTICLE_LIMIT` (500 rows) by default to prevent unbounded memory and DOM expansion.
+- **Connection Management in Web Process**: The web server reuses a single cached database connection across requests. `getDb()` caches the instance on `globalThis.__mediumReaderDb` in `src/db/instance.ts` (see ADR 0010). On `/read/[id]`, database lookups are wrapped in `React.cache()` (`getArticleForRequest`) so `generateMetadata` and `ArticlePage` share a single query per request.
 - **CLI Connection Model**: CLI scripts create dedicated short-lived connections using `createDb()` in `src/db/client.ts`. Connections close automatically when CLI processes terminate.
 - **Full-Text Search**: An FTS5 virtual table indexes article titles, authors, and markdown content for fast text searches.
 

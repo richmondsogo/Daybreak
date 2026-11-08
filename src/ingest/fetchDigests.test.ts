@@ -297,5 +297,57 @@ describe("fetchDigests orchestrator", () => {
     expect(errors.length).toBe(15);
     expect(errors[0].message).toBe("Possible unrecognized Medium chrome: caption-prompt");
   });
+
+  it("g. Processes articles with bounded concurrency and reuses pre-cleaned markdown", async () => {
+    const db = createDb(":memory:");
+    const imapClient = new FakeImapClient([{
+      uid: 1,
+      messageId: "test-msg-concurrent",
+      rawBuffer,
+      date: fakeDate,
+    }]);
+    await imapClient.connect();
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    const fetchAndExtractArticle = async (url: string): Promise<ExtractedArticle> => {
+      inFlight++;
+      if (inFlight > maxInFlight) {
+        maxInFlight = inFlight;
+      }
+      await new Promise((r) => setTimeout(r, 10));
+      inFlight--;
+      return {
+        url,
+        contentMarkdown: "Click to view image in full size\n\nRaw content",
+        // Pre-cleaned markdown already has the marker stripped, proving fetchDigests reuses cleanedMarkdown
+        cleanedMarkdown: "Clean content for " + url,
+        extractedTitle: "Title for " + url,
+        wordCount: 100,
+        fetchStatus: "ok",
+        fetchedVia: "direct",
+        fetchedAt: new Date().toISOString(),
+      };
+    };
+
+    const result = await fetchDigests({
+      imapClient,
+      db,
+      fetchAndExtractArticle,
+      httpFetchDeps: defaultHttpFetchDeps,
+      sleep: async () => {},
+      articleFetchDelayMs: 0,
+      lookbackDays: 14,
+      concurrency: 3,
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.articlesUpserted).toBe(15);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(maxInFlight).toBeLessThanOrEqual(3);
+    // Because cleanedMarkdown had no residual markers, errorSummary should be null
+    expect(result.errorSummary).toBeNull();
+  });
 });
 

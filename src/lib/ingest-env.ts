@@ -11,6 +11,7 @@ export const ingestEnvSchema = envSchema.extend({
   GMAIL_USER: z.string(),
   GMAIL_APP_PASSWORD: z.string(),
   ARTICLE_FETCH_DELAY_MS: z.coerce.number().default(1500),
+  ARTICLE_FETCH_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
   INGEST_LOOKBACK_DAYS: z.coerce.number().default(14),
 });
 

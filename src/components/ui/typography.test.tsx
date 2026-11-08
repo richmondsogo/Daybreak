@@ -40,10 +40,52 @@ describe("typography - ArticleSubtitle", () => {
 });
 
 describe("typography - Wordmark", () => {
-  it("renders the given text and has the lowercase class", () => {
+  it("renders the given text and has the lowercase and font-mono classes", () => {
     const html = renderToStaticMarkup(<Wordmark>Daybreak</Wordmark>);
     expect(html).toContain("Daybreak");
     expect(html).toContain("lowercase");
+    expect(html).toContain("font-mono");
+  });
+});
+
+describe("typography gate - route and reader component discipline", () => {
+  it("forbids raw font-size, font-weight, and line-height Tailwind classes in src/app and src/components/*.tsx", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+
+    function collectTsxFiles(dir: string): string[] {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const results: string[] = [];
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "ui") continue; // shadcn primitives + typography.tsx live in src/components/ui
+          results.push(...collectTsxFiles(fullPath));
+        } else if (entry.isFile() && entry.name.endsWith(".tsx") && !entry.name.endsWith(".test.tsx")) {
+          results.push(fullPath);
+        }
+      }
+      return results;
+    }
+
+    const filesToCheck = [
+      ...collectTsxFiles(path.resolve(process.cwd(), "src/app")),
+      ...collectTsxFiles(path.resolve(process.cwd(), "src/components")),
+    ];
+
+    const forbiddenTypographyClass =
+      /\b(?:text-(?:xs|sm|base|lg|xl|[2-9]xl|\[[0-9]+(?:px|rem|em)\])|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)|leading-(?:none|tight|snug|normal|relaxed|loose|[0-9]+|\[[^\]]+\]))\b/;
+
+    const violations: string[] = [];
+    for (const file of filesToCheck) {
+      const content = fs.readFileSync(file, "utf8");
+      const match = content.match(forbiddenTypographyClass);
+      if (match) {
+        violations.push(`${path.relative(process.cwd(), file)}: "${match[0]}"`);
+      }
+    }
+
+    expect(violations).toEqual([]);
   });
 });
 

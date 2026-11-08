@@ -51,7 +51,7 @@ export function upsertArticle(db: DbClient, article: InsertArticle) {
       .where(eq(articles.url, article.url))
       .returning()
       .get();
-    
+
     return { row: updated, action: "updated" as const };
   }
 
@@ -97,7 +97,13 @@ export function purgeOldArticles(db: DbClient, olderThanIso: string) {
   return result.changes;
 }
 
-export function listArticles(db: DbClient) {
+export const DEFAULT_SIDEBAR_ARTICLE_LIMIT = 500;
+
+export function listArticles(
+  db: DbClient,
+  options: { limit?: number } = {}
+) {
+  const limit = options.limit ?? DEFAULT_SIDEBAR_ARTICLE_LIMIT;
   return db
     .select({
       id: articles.id,
@@ -110,6 +116,7 @@ export function listArticles(db: DbClient) {
     })
     .from(articles)
     .orderBy(desc(articles.ingestedAt))
+    .limit(limit)
     .all();
 }
 

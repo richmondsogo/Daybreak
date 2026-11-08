@@ -61,6 +61,8 @@ describe("fetchAndExtractArticle", () => {
     expect(res.fetchedVia).toBe("direct");
     expect(res.subtitle).toBe("A complete story subtitle");
     expect(res.contentMarkdown).toContain("Full article content");
+    expect(res.cleanedMarkdown).toBeDefined();
+    expect(res.cleanedMarkdown).toContain("Full article content");
   });
 
   it("sets subtitle to '' when page has no distinct subtitle", async () => {

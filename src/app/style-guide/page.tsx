@@ -1,108 +1,102 @@
-import { IBM_Plex_Sans } from "next/font/google";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-ibm-plex-sans" });
+import {
+  ArticleTitle,
+  ArticleSubtitle,
+  ArticleHeading2,
+  ArticleHeading3,
+  ArticleBody,
+  ArticleBlockquote,
+  ListItemTitle,
+  ListItemTitleSelected,
+  Meta,
+  SectionLabel,
+  UiLabel,
+  UiLabelSmall,
+  InlineCode,
+  Wordmark,
+} from "@/components/ui/typography";
+import { APP_NAME } from "@/lib/brand";
 
 export default function StyleGuidePage() {
   return (
-    <div
-      className={`min-h-screen bg-background text-foreground p-8 ${ibmPlexSans.variable}`}
-    >
+    <div className="h-dvh overflow-y-auto bg-background text-foreground p-8">
       <div className="max-w-3xl mx-auto space-y-8">
-        {/* Nav-style row */}
-        <nav
-          className={`${ibmPlexSans.className} flex items-center justify-between py-4`}
-        >
-          <div className="font-semibold text-lg tracking-tight">
-            Medium Reader
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-muted-foreground">Style Guide</span>
-          </div>
+        <nav className="flex items-center justify-between py-4">
+          <Wordmark>{APP_NAME}</Wordmark>
+          <Meta>Style Guide</Meta>
         </nav>
 
         <Separator className="bg-border" />
 
-        {/* Headings and Paragraph */}
-        <div className="space-y-6">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            Style Guide & Typography
-          </h1>
-          <h2 className="text-2xl font-semibold text-foreground">
-            Subheading Example (H2)
-          </h2>
-          <h3 className="text-xl font-medium text-muted-foreground">
-            Section Title (H3)
-          </h3>
-          <p className="text-lg leading-relaxed text-foreground">
-            This is a paragraph rendered in the IBM Plex Sans font. It
-            demonstrates the reading experience for the main article content.
-            The design uses Tailwind CSS theme tokens like{" "}
-            <code className="text-sm bg-muted text-muted-foreground px-1 py-0.5 rounded">
-              bg-background
-            </code>{" "}
-            and{" "}
-            <code className="text-sm bg-muted text-muted-foreground px-1 py-0.5 rounded">
-              text-foreground
-            </code>{" "}
-            to ensure proper contrast in both light and dark modes. Good
-            typography is essential for a comfortable reading experience.
-          </p>
-        </div>
+        <section className="space-y-4">
+          <ArticleTitle>Style Guide &amp; Typography</ArticleTitle>
+          <ArticleSubtitle>
+            All text elements route through semantic typography components using IBM Plex Sans and Geist Mono.
+          </ArticleSubtitle>
+          <ArticleHeading2>Subheading Example (H2)</ArticleHeading2>
+          <ArticleHeading3>Section Title (H3)</ArticleHeading3>
+          <ArticleBody>
+            This is a paragraph rendered in IBM Plex Sans. It demonstrates the reading experience for the main article content. The design uses Tailwind CSS theme tokens like{" "}
+            <InlineCode>bg-background</InlineCode> and{" "}
+            <InlineCode>text-foreground</InlineCode> to ensure proper contrast in both light and dark modes.
+          </ArticleBody>
+          <ArticleBlockquote>
+            Hierarchy comes from type size, weight, and foreground/muted-foreground color — never cards or decorative chrome.
+          </ArticleBlockquote>
+        </section>
 
-        {/* Small UI text & Metadata */}
-        <div className={`${ibmPlexSans.className} space-y-2`}>
-          <div className="text-sm text-muted-foreground">
-            Published on September 26, 2026 • 5 min read
+        <section className="space-y-3">
+          <SectionLabel as="h2" className="block text-foreground">
+            Sidebar &amp; Metadata Roles
+          </SectionLabel>
+          <div className="space-y-2">
+            <ListItemTitle as="div">Unread Sidebar Article Title</ListItemTitle>
+            <ListItemTitleSelected as="div">Selected Sidebar Article Title</ListItemTitleSelected>
+            <ListItemTitle as="div" isRead>
+              Read Sidebar Article Title
+            </ListItemTitle>
           </div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-            Tag: Typography
+          <div className="space-y-1 pt-2">
+            <Meta as="div">Published on September 26, 2026 &middot; 5 min read</Meta>
+            <UiLabel as="div" className="text-muted-foreground">
+              UI Label
+            </UiLabel>
+            <UiLabelSmall as="div" className="uppercase tracking-wider text-muted-foreground">
+              Tag: Typography
+            </UiLabelSmall>
           </div>
-        </div>
+        </section>
 
         <Separator className="bg-border" />
 
-        {/* UI Components */}
-        <div className={`${ibmPlexSans.className} space-y-6`}>
-          <h2 className="text-xl font-semibold">UI Components</h2>
-          <div className="flex space-x-4">
-            <Button className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-              Primary Button
-            </Button>
-            <Button
-              variant="secondary"
-              className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              Secondary
-            </Button>
-            <Button
-              variant="outline"
-              className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              Outline
-            </Button>
+        <section className="space-y-6">
+          <SectionLabel as="h2" className="block text-foreground">
+            UI Components
+          </SectionLabel>
+          <div className="flex gap-4">
+            <Button>Primary Button</Button>
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="outline">Outline</Button>
           </div>
 
-          <div className="pt-4">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          <div className="pt-2">
+            <Meta as="div" className="mb-2.5">
               ScrollArea Example
-            </h3>
-            <ScrollArea className="h-40 w-full rounded-md border border-border p-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            </Meta>
+            <ScrollArea className="h-40 w-full rounded-md border border-border p-4">
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-                  <div key={i} className="text-sm text-foreground">
-                    Scrollable content item {i} demonstrating the ScrollArea
-                    component.
-                  </div>
+                  <Meta key={i} as="div" className="text-foreground">
+                    Scrollable content item {i} demonstrating the ScrollArea component.
+                  </Meta>
                 ))}
               </div>
             </ScrollArea>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
- 

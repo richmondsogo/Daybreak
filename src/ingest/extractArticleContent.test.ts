@@ -36,4 +36,14 @@ describe("extractArticleContent", () => {
       extractArticleContent(html, "https://medium.com/test");
     }).not.toThrow();
   });
+
+  it("removes innermost Freedium beta banners across nested and split spans without removing article body", () => {
+    const html = `<!doctype html><html><body>
+      <header><a class="brand"><span>Freedium</span> <span><sup>beta</sup></span></a></header>
+      <article><h1>Test Story</h1><p>This is the real article body with enough words to parse cleanly.</p></article>
+    </body></html>`;
+    const result = extractArticleContent(html, "https://freedium-mirror.cfd/test-story");
+    expect(result.contentMarkdown).toContain("This is the real article body");
+    expect(result.contentMarkdown).not.toMatch(/Freedium/i);
+  });
 });

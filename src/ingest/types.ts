@@ -52,6 +52,7 @@ export type FetchStatus = "ok" | "partial" | "failed";
 export type ExtractedArticle = {
   url: string;
   contentMarkdown: string;
+  cleanedMarkdown?: string;
   extractedTitle?: string;
   extractedByline?: string;
   subtitle?: string | null;

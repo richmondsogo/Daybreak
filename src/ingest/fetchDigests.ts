@@ -22,6 +22,7 @@ export interface FetchDigestsDeps {
   sleep: (ms: number) => Promise<void>;
   articleFetchDelayMs: number;
   lookbackDays: number;
+  concurrency?: number;
 }
 
 export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngestRunParams> {
@@ -33,7 +34,9 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
     sleep,
     articleFetchDelayMs,
     lookbackDays,
+    concurrency = 1,
   } = deps;
+  const workerCount = Math.max(1, Math.floor(concurrency));
 
   const runId = startIngestRun(db);
   const errorSummary: Array<{ context: string; message: string }> = [];
@@ -89,8 +92,9 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
       }
 
       const articlesCount = parsedDigest.articles.length;
+      let nextIndex = 0;
 
-      for (let i = 0; i < articlesCount; i++) {
+      const processArticleAtIndex = async (i: number) => {
         const article = parsedDigest.articles[i];
         try {
           const extracted = await fetchAndExtractArticle(
@@ -104,10 +108,12 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
           );
 
           if (extracted.fetchedVia === "direct") {
-            const cleaned = cleanArticleMarkdown(
-              extracted.contentMarkdown,
-              extracted.extractedTitle || article.title
-            );
+            const cleaned =
+              extracted.cleanedMarkdown ??
+              cleanArticleMarkdown(
+                extracted.contentMarkdown,
+                extracted.extractedTitle || article.title
+              );
             const markers = detectResidualChromeMarkers(cleaned);
             if (markers.length > 0) {
               errorSummary.push({
@@ -116,7 +122,7 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
               });
             }
           }
-          
+
           const insertData: InsertArticle = {
             url: article.url,
             title: extracted.extractedTitle || article.title || "Untitled",
@@ -144,12 +150,22 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
             message: err instanceof Error ? err.message : String(err),
           });
         }
+      };
 
-        // Delay between articles
-        if (i < articlesCount - 1) {
-          await sleep(articleFetchDelayMs);
+      const activeWorkers = Math.min(workerCount, articlesCount);
+      const workers = Array.from({ length: activeWorkers }, async () => {
+        let processedByWorker = 0;
+        while (nextIndex < articlesCount) {
+          const currentIndex = nextIndex++;
+          if (processedByWorker > 0 || (workerCount === 1 && currentIndex > 0)) {
+            await sleep(articleFetchDelayMs);
+          }
+          await processArticleAtIndex(currentIndex);
+          processedByWorker++;
         }
-      }
+      });
+
+      await Promise.all(workers);
 
       // Mark processed even if some articles failed, but not if the parse/fetch itself threw completely
       markEmailProcessed(db, email.messageId, articlesCount);

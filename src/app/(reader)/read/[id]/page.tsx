@@ -1,3 +1,4 @@
+import { cache } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
@@ -11,16 +12,52 @@ import {
   ArticleBody,
   ArticleBlockquote,
   Meta,
+  SectionLabel,
+  UiLabel,
 } from "@/components/ui/typography";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArticleImage } from "@/components/article-image";
-import { rewriteImageUrl } from "@/lib/rewriteImageUrl";
 import { cleanArticleMarkdown } from "@/lib/cleanArticleMarkdown";
 import { getDisplaySubtitle } from "@/lib/getDisplaySubtitle";
 import { MarkReadOnView } from "./mark-read-on-view";
 
 export const dynamic = "force-dynamic";
+
+const getArticleForRequest = cache((id: number) => {
+  const db = getDb();
+  return getArticleById(db, id);
+});
+
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
+
+const MARKDOWN_COMPONENTS: Components = {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  h2: ({ node, ...props }) => <ArticleHeading2 {...props} />,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  h3: ({ node, ...props }) => <ArticleHeading3 {...props} />,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  blockquote: ({ node, ...props }) => <ArticleBlockquote {...props} />,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  img: ({ node, src, ...props }) => (
+    <ArticleImage src={typeof src === "string" ? src : undefined} {...props} />
+  ),
+};
+
+function ArticleNotFound() {
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-center">
+      <div className="max-w-md">
+        <SectionLabel as="h2" className="block mb-2.5 text-foreground">
+          Article not found
+        </SectionLabel>
+        <Meta as="p">
+          The article you are looking for does not exist or has been removed.
+        </Meta>
+      </div>
+    </div>
+  );
+}
 
 export async function generateMetadata({
   params,
@@ -32,8 +69,7 @@ export async function generateMetadata({
   if (isNaN(id)) {
     return { title: "Article not found" };
   }
-  const db = getDb();
-  const article = getArticleById(db, id);
+  const article = getArticleForRequest(id);
   return { title: article?.title ?? "Article not found" };
 }
 
@@ -42,31 +78,17 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
   const id = parseInt(resolvedParams.id, 10);
 
   if (isNaN(id)) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 text-center">
-        <div className="max-w-md space-y-4">
-          <h2 className="font-sans text-xl font-bold">Article not found</h2>
-          <p className="text-muted-foreground">The article you are looking for does not exist or has been removed.</p>
-        </div>
-      </div>
-    );
+    return <ArticleNotFound />;
   }
 
-  const db = getDb();
-  const article = getArticleById(db, id);
+  const article = getArticleForRequest(id);
 
   if (!article) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 text-center">
-        <div className="max-w-md space-y-4">
-          <h2 className="font-sans text-xl font-bold">Article not found</h2>
-          <p className="text-muted-foreground">The article you are looking for does not exist or has been removed.</p>
-        </div>
-      </div>
-    );
+    return <ArticleNotFound />;
   }
 
   const displaySubtitle = getDisplaySubtitle(article);
+  const cleanedMarkdown = cleanArticleMarkdown(article.contentMarkdown, article.title);
 
   return (
     <article className="mx-auto w-full max-w-[720px] py-12 px-6">
@@ -74,10 +96,10 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
       <div className="mb-8 md:hidden">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors duration-120 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground rounded-sm"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Back</span>
+          <UiLabel>Back</UiLabel>
         </Link>
       </div>
 
@@ -96,11 +118,11 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors duration-120 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground rounded-sm"
             title="Open original article"
             aria-label="Open original article"
           >
-          <ArrowUpRight className="h-3.5 w-3.5" />
+            <ArrowUpRight className="h-3.5 w-3.5" />
           </a>
         </Meta>
       </header>
@@ -111,29 +133,15 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
                    [&_ul]:list-disc [&_ul]:pl-6 [&_ul_li]:my-2 [&_ul]:my-6
                    [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_li]:my-2 [&_ol]:my-6
                    [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-muted-foreground
-                   [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-sm [&_code]:text-[0.875em]
+                   [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-sm
                    [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:rounded-md [&_pre]:overflow-x-auto [&_pre]:my-6
-                   [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[0.875em]"
+                   [&_pre_code]:bg-transparent [&_pre_code]:p-0"
       >
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            h2: ({ node, ...props }) => <ArticleHeading2 {...props} />,
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            h3: ({ node, ...props }) => <ArticleHeading3 {...props} />,
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            blockquote: ({ node, ...props }) => <ArticleBlockquote {...props} />,
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            img: ({ node, src, ...props }) => (
-              <ArticleImage
-                src={typeof src === "string" ? rewriteImageUrl(src) : undefined}
-                {...props}
-              />
-            ),
-          }}
+          remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+          components={MARKDOWN_COMPONENTS}
         >
-          {cleanArticleMarkdown(article.contentMarkdown, article.title)}
+          {cleanedMarkdown}
         </ReactMarkdown>
       </ArticleBody>
     </article>

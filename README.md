@@ -1,115 +1,100 @@
-# Daybreak (medium-reader)
+# Daybreak (`medium-reader`)
 
-Daybreak is a private reader for Medium Daily Digest emails. A digest email is a daily summary email sent by Medium that highlights recommended articles. The application provides a clean reading experience with a local ninety-day archive. This software is a personal tool rather than a public product. It stays private by design to protect personal data and paywalled content without requiring a login system.
+Daybreak is a calm, dense, type-driven private reader for Medium Daily Digest emails. It ingests digest emails via Gmail IMAP, extracts and cleans full article content into clean Markdown, stores records in a local SQLite database (WAL mode), and serves a quiet reading interface designed for long-form reading without noise or distraction.
 
-## What It Does
+---
 
-- Fetches digest emails from Gmail using the Internet Message Access Protocol (IMAP).
-- Extracts and cleans article text from email links.
-- Handles paywalled articles by fetching full text through Freedium mirrors. Freedium is a proxy service that renders paywalled Medium articles.
-- Fixes broken image links and retries failed image downloads.
-- Strips unwanted Medium web chrome and user interface elements.
-- Stores articles locally in a SQLite database using Write-Ahead Logging (WAL).
-- Serves a fast web reading interface built with Next.js and Tailwind CSS.
+## Interface
+
+### Dark Mode (Primary)
+![Daybreak Dark Mode Reader](docs/screenshots/daybreak-reader-dark.png)
+
+### Light Mode (OS Preference)
+![Daybreak Light Mode Reader](docs/screenshots/daybreak-reader-light.png)
+
+---
+
+## Core Capabilities
+
+- **Automatic IMAP Digest Ingestion**: Searches for Medium Daily Digest emails from Gmail using `ImapflowClient` with configurable lookback windows.
+- **Resilient Multi-Source Extraction**: Attempts direct Medium retrieval, falling back gracefully to configured Freedium mirror endpoints for member-only/paywalled stories.
+- **Concurrent Politeness**: Bounded worker concurrency (`ARTICLE_FETCH_CONCURRENCY=3`) with per-worker delays to balance fast ingestion with upstream rate limits.
+- **Zero Chrome Leakage**: Strips Medium promotional banners, follow recommendations, clap counters, image zoom prompts, and Freedium boilerplate before markdown storage.
+- **Indexed Reverse-Chronological Archive**: SQLite database indexed by `ingestedAt` (`articles_ingested_at_idx`) with bounded sidebar queries (`DEFAULT_SIDEBAR_ARTICLE_LIMIT = 500`) and CSS `content-visibility: auto` for smooth scrolling over large libraries.
+- **Single-Pass DOM Extraction**: Optimized with high-efficiency `TreeWalker` algorithms for sub-millisecond parsing and subtitle extraction.
+- **Strict Typography Gate**: Strict separation of concerns via `src/components/ui/typography.tsx` (`IBM Plex Sans` + `Geist Mono` wordmark and code blocks), enforced by automated tests and ESLint.
+
+---
 
 ## Quick Start
 
 ### Prerequisites
-
-- Node.js version 20.9.0 or later.
-- pnpm package manager version 10 or later.
-- A Gmail account receiving Medium Daily Digest emails.
+- Node.js 20.9.0 or later
+- pnpm 10 or later
+- A Gmail account receiving Medium Daily Digest emails
 
 ### Setup Instructions
 
-1. Clone the repository to your local machine:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/richmondsogo/medium-reader.git
+   cd medium-reader
+   ```
 
-```bash
-git clone https://github.com/richmondsogo/medium-reader.git
-```
+2. Bootstrap dependencies and environment:
+   ```powershell
+   .\scripts\bootstrap.ps1
+   ```
+   *(Or run `pnpm install` and `cp .env.example .env` manually)*
 
-2. Change into the project directory:
+3. Configure Gmail IMAP credentials in `.env`:
+   - `GMAIL_USER=your_email@gmail.com`
+   - `GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx` *(generate an App Password in Google Account -> Security -> 2-Step Verification -> App passwords)*
 
-```bash
-cd medium-reader
-```
+4. Ingest articles from your digests:
+   ```bash
+   pnpm fetch-digests
+   ```
 
-3. Install project dependencies:
+5. Launch the reader web UI:
+   ```bash
+   pnpm dev
+   ```
+   Open `http://localhost:3000` in your browser.
 
-```bash
-pnpm install
-```
-
-4. Create your local environment file from the example template:
-
-```bash
-cp .env.example .env
-```
-
-5. Generate a Gmail App Password for IMAP access:
-   - Open your Google Account security settings.
-   - Navigate to **2-Step Verification**.
-   - Scroll to the bottom and select **App passwords**.
-   - Generate a new app password named `medium-reader`.
-   - Google displays a 16-character passcode.
-
-6. Configure required credentials in `.env`:
-   - Set `GMAIL_USER` to your Gmail address.
-   - Set `GMAIL_APP_PASSWORD` to your 16-character app password without spaces.
-   - All other variables in `.env` have working defaults.
-
-7. Fetch your initial digest emails and populate the database:
-
-```bash
-pnpm fetch-digests
-```
-
-8. Start the local development server:
-
-```bash
-pnpm dev
-```
-
-9. Open your browser and navigate to the application:
-
-```
-http://localhost:3000
-```
-
-> [!NOTE]
-> **Windows Notes**
-> - Antivirus software such as Norton can block IMAP connections. Disable email scanning features if IMAP connections fail.
-> - PowerShell requires the `-LiteralPath` parameter for paths containing square brackets, such as Next.js route directories.
+---
 
 ## Command Reference
-
-The Command-Line Interface (CLI) scripts provide data ingestion, database inspection, and maintenance operations.
 
 | Command | Description | Safety Behavior |
 | :--- | :--- | :--- |
 | `pnpm dev` | Starts the Next.js development server on port 3000. | Read-only web server. |
 | `pnpm build` | Compiles the production build of the Next.js application. | Read-only build task. |
 | `pnpm start` | Runs the compiled Next.js production server. | Read-only web server. |
-| `pnpm lint` | Runs ESLint to check code standards. | Read-only code check. |
+| `pnpm lint` | Runs ESLint standards verification. | Read-only code check. |
 | `pnpm typecheck` | Validates TypeScript types across the codebase. | Read-only code check. |
 | `pnpm test` | Executes the Vitest automated test suite. | Read-only test runner. |
-| `pnpm check` | Runs lint, typecheck, and test commands in sequence. | Read-only verification pipeline. |
-| `pnpm format` | Formats all source files with Prettier. | Modifies source code files. |
-| `pnpm fetch-digests` | Connects to Gmail via IMAP, parses new digest emails, and stores articles in SQLite. | Writes new articles and ingest logs. Safe to run repeatedly. |
-| `pnpm inspect-db` | Displays database statistics, article counts by status, and recent articles. | Read-only query against SQLite. |
-| `pnpm purge-old-articles` | Removes articles older than 90 days. | **Safe by default.** Runs as a dry run and deletes nothing. Run `pnpm purge-old-articles --confirm` to delete articles. |
-| `pnpm backfill-subtitles` | Extracts subtitles for stored articles that lack subtitle metadata. | **Safe by default.** Runs as a dry run limited to 10 articles. Run `pnpm backfill-subtitles --apply` to commit changes. Use `--limit <N>` to adjust batch size, or `--all` to process every article. |
-| `pnpm db:generate` | Generates new SQLite migration files from Drizzle schema definitions. | Generates migration files in `drizzle/migrations`. |
+| `pnpm check` | Runs lint, typecheck, and unit test suites sequentially. | Read-only verification pipeline. |
+| `.\scripts\verify.ps1` | Full verification gate: repository hygiene, secret checks, lint, typecheck, and tests. | Read-only test & hygiene check. |
+| `pnpm fetch-digests` | Connects to Gmail via IMAP, parses new digest emails, and stores articles in SQLite. | Idempotent upsert of articles and run logs. |
+| `pnpm inspect-db` | Displays database statistics, counts by fetch status, and recent additions. | Read-only query against SQLite. |
+| `pnpm purge-old-articles` | Removes articles older than 90 days (`--confirm` required to execute). | Safe dry-run by default. |
+| `pnpm backfill-subtitles` | Extracts missing subtitles for stored articles (`--apply` required to write). | Safe dry-run by default. |
+| `pnpm db:generate` | Generates SQLite migration files from schema definitions. | Generates migrations in `drizzle/migrations/`. |
 
-## How It Is Built
+---
 
-Daybreak uses a three-stage architecture. The ingestion pipeline connects to Gmail via IMAP, parses digest emails, and extracts article text. The storage layer saves articles in a local SQLite database configured with Write-Ahead Logging (WAL). The web layer serves articles through a Next.js App Router user interface using dynamic server rendering. For detailed architectural decisions, see [docs/architecture.md](file:///c:/Users/Richmond/Desktop/Codebase/medium-reader/docs/architecture.md). For design principles and coding conventions, review [DESIGN.md](file:///c:/Users/Richmond/Desktop/Codebase/medium-reader/DESIGN.md) and [AGENTS.md](file:///c:/Users/Richmond/Desktop/Codebase/medium-reader/AGENTS.md).
+## Architectural & Design References
 
-## Status
+- [`BUILD_PROTOCOL.md`](BUILD_PROTOCOL.md) — Step-by-step execution protocol, branching strategy, and verification gate.
+- [`CONTEXT.md`](CONTEXT.md) — Domain model, bounded contexts, and glossary.
+- [`DESIGN.md`](DESIGN.md) — Typography roles, spacing scale, ink hierarchy, and layout rules.
+- [`docs/architecture.md`](docs/architecture.md) — Ingestion pipeline, caching, and database architecture.
+- [`docs/agents/file-structure.md`](docs/agents/file-structure.md) — Canonical directory layout and boundaries.
+- [`docs/agents/skills.md`](docs/agents/skills.md) — Project-local agent skills catalog.
 
-- **Working Today**: Email ingestion via IMAP, article extraction, paywall bypass, chrome cleanup, local SQLite archiving, and the reading user interface.
-- **In Progress**: Automated deployment configuration for private networks.
+---
 
-## Privacy and License
+## Privacy & Security
 
-Daybreak is a personal project intended only for private use on private networks because it displays content from paywalled sources.
+Daybreak is a personal reading tool intended strictly for private network deployment (e.g., via Tailscale or localhost). It stores copyrighted and paywalled content locally for personal use and must never be exposed to the public internet. Secrets are isolated to `src/lib/ingest-env.ts` and never accessible to client components or web routes.

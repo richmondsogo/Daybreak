@@ -9,8 +9,8 @@ export function extractArticleContent(
   const dom = new JSDOM(html, { url: sourceUrl });
   const document = dom.window.document;
 
-  // 1. Strip scripts containing __remixContext or __MIDDLEWARE_STATE__
-  const scripts = Array.from(document.querySelectorAll("script"));
+  // 1. Strip inline scripts containing __remixContext or __MIDDLEWARE_STATE__
+  const scripts = document.querySelectorAll("script:not([src])");
   for (const script of scripts) {
     const text = script.textContent || "";
     if (text.includes("__remixContext") || text.includes("__MIDDLEWARE_STATE__")) {
@@ -18,21 +18,35 @@ export function extractArticleContent(
     }
   }
 
-  // 2. Strip elements whose text content matches /Freedium beta/i
-  // To avoid removing the entire body, we only remove the innermost elements that match.
-  const elements = Array.from(document.querySelectorAll("*"));
-  for (const el of elements) {
-    const text = el.textContent || "";
-    if (/Freedium beta/i.test(text)) {
-      // Check if any direct child also contains the match
-      const childMatches = Array.from(el.children).some((child) => {
-        return /Freedium beta/i.test(child.textContent || "");
-      });
-      // If no child matches, this is the innermost element containing the text
-      if (!childMatches) {
-        el.remove();
+  // 2. Strip innermost elements whose text content matches /Freedium beta/i
+  // Single-pass TreeWalker over leaf text nodes avoids O(N * depth) subtree textContent reads.
+  const freediumPattern = /Freedium beta/i;
+  const candidatesToRemove = new Set<Element>();
+  const root = document.body ?? document.documentElement;
+  if (root) {
+    const walker = document.createTreeWalker(root, dom.window.NodeFilter.SHOW_TEXT);
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      if (/freedium/i.test(currentNode.nodeValue || "")) {
+        let el: Element | null = currentNode.parentElement;
+        while (el && el !== document.body && el !== document.documentElement) {
+          if (freediumPattern.test(el.textContent || "")) {
+            const childMatches = Array.from(el.children).some((child) =>
+              freediumPattern.test(child.textContent || "")
+            );
+            if (!childMatches) {
+              candidatesToRemove.add(el);
+            }
+            break;
+          }
+          el = el.parentElement;
+        }
       }
+      currentNode = walker.nextNode();
     }
+  }
+  for (const el of candidatesToRemove) {
+    el.remove();
   }
 
   // 3. Run Readability

@@ -35,18 +35,19 @@ export async function fetchAndExtractArticle(
   const fetchStatus = completeness === "complete" ? "ok" : "partial";
   const extracted = extractArticleContent(result.html, url);
 
-  const titleForCleaning = fallback.title || extracted.title || "";
-  const cleanedBody = cleanArticleMarkdown(extracted.contentMarkdown, titleForCleaning);
+  const titleForCleaning = extracted.title || fallback.title || "";
+  const cleanedMarkdown = cleanArticleMarkdown(extracted.contentMarkdown, titleForCleaning);
   const subtitleResult = extractSubtitle({
     html: result.html,
     via: result.via,
     title: titleForCleaning,
-    bodyMarkdown: cleanedBody,
+    bodyMarkdown: cleanedMarkdown,
   });
 
   return {
     url,
     contentMarkdown: extracted.contentMarkdown,
+    cleanedMarkdown,
     extractedTitle: extracted.title,
     extractedByline: extracted.byline,
     subtitle: subtitleResult.subtitle,

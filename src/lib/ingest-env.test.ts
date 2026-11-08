@@ -15,6 +15,7 @@ describe("ingest env configuration", () => {
       "https://freedium.cfd",
     ]);
     expect(config.ARTICLE_FETCH_DELAY_MS).toBe(1500);
+    expect(config.ARTICLE_FETCH_CONCURRENCY).toBe(3);
     expect(config.INGEST_LOOKBACK_DAYS).toBe(14);
   });
 
@@ -26,6 +27,7 @@ describe("ingest env configuration", () => {
       GMAIL_USER: "test@example.com",
       GMAIL_APP_PASSWORD: "test-password",
       ARTICLE_FETCH_DELAY_MS: "500",
+      ARTICLE_FETCH_CONCURRENCY: "4",
       INGEST_LOOKBACK_DAYS: "30",
     });
 
@@ -36,6 +38,7 @@ describe("ingest env configuration", () => {
       "https://other.com",
     ]);
     expect(config.ARTICLE_FETCH_DELAY_MS).toBe(500);
+    expect(config.ARTICLE_FETCH_CONCURRENCY).toBe(4);
     expect(config.INGEST_LOOKBACK_DAYS).toBe(30);
   });
 

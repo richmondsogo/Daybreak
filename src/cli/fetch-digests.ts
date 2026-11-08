@@ -27,6 +27,7 @@ async function main() {
       sleep,
       articleFetchDelayMs: env.ARTICLE_FETCH_DELAY_MS,
       lookbackDays: env.INGEST_LOOKBACK_DAYS,
+      concurrency: env.ARTICLE_FETCH_CONCURRENCY,
     });
 
     console.log("=== Fetch Digests Summary ===");
