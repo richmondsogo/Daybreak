@@ -7,7 +7,7 @@
 ## Core Bounded Contexts
 
 ### 1. Digest Ingestion (`src/ingest/`, `src/cli/`)
-- **Pipeline**: `ImapflowClient` → `parseDigestEmail` → `cleanTrackingUrl` → `fetchArticleHtml` (direct fetch with Freedium mirror fallbacks) → `extractArticleContent` (JSDOM + Readability + Turndown) → `cleanArticleMarkdown` + `extractSubtitle` → `upsertArticleByUrl` + `markEmailProcessed`.
+- **Pipeline**: `ImapflowClient` → `parseDigestEmail` → `normalizeUrl` → `fetchArticleHtml` (direct fetch with Freedium mirror fallbacks) → `extractArticleContent` (JSDOM + Readability + Turndown) → `cleanArticleMarkdown` + `extractSubtitle` → `upsertArticleByUrl` + `markEmailProcessed`.
 - **Concurrency & Politeness**: `fetchDigests` processes candidate articles with bounded worker concurrency (`ARTICLE_FETCH_CONCURRENCY`, default `3` in CLI, `1` when omitted in unit tests) and a per-worker delay (`ARTICLE_FETCH_DELAY_MS`) between network fetches.
 - **Resilience**: Paywalled or incomplete direct fetches automatically fall back to configured Freedium mirrors. New Medium UI chrome leaks surface as soft warnings in `errorSummary` via `detectResidualChromeMarkers()`.
 
@@ -30,7 +30,7 @@
 | Term | Meaning in Daybreak |
 | :--- | :--- |
 | **Digest Email** | A Medium Daily Digest email fetched via IMAP (`noreply@medium.com`) containing ~10–15 curated article links. |
-| **Canonical URL** | The stripped Medium article URL (`cleanTrackingUrl`) used as the unique deduplication key in `articles.url`. |
+| **Canonical URL** | The stripped Medium article URL (`normalizeUrl`) used as the unique deduplication key in `articles.url`. |
 | **Chrome Leakage** | Residual Medium or Freedium UI boilerplate (follow links, clap counters, image zoom prompts, member-only banners) stripped by `cleanArticleMarkdown`. |
 | **Fetched Via** | Which source succeeded for an article body: `"direct"`, `"freedium"`, `"freedium-mirror"`, or `"failed"`. |
 | **Fetch Status** | Lifecycle state of an article row: `"pending"`, `"fetched"`, `"partial"`, or `"failed"`. |
