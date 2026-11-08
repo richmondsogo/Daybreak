@@ -1,3 +1,13 @@
+# Keep CRLF vs LF line endings consistent
 * text=auto eol=lf
 *.eml -text
+
+# Exclude offline test fixtures from GitHub language statistics and diffs
+fixtures/** linguist-vendored
 fixtures/html/** -text
+
+# Exclude agent skills and third-party security scanners from language stats
+.agents/** linguist-vendored
+
+# Exclude auto-generated Drizzle database migrations from language stats
+drizzle/migrations/** linguist-generated
