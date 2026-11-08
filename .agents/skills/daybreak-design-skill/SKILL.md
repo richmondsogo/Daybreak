@@ -1,9 +1,9 @@
 ---
-name: design-system
+name: daybreak-design-skill
 description: Daybreak's design system rules covering typography, spacing, hierarchy, and composition. Use when creating or modifying any UI component, page layout, markdown prose style, or visual element in Daybreak.
 ---
 
-# Daybreak Design System Skill
+# Daybreak Design Skill
 
 Daybreak is a quiet, dense, type-driven reader inspired by `brianlovin.com/hn` and Danish functionalism. The interface does the least amount of work possible so the user can arrive and read without mental disturbance.
 

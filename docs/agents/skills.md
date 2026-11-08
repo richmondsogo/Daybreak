@@ -6,7 +6,7 @@ Project-local skills live in `.agents/skills/<skill-name>/SKILL.md`. Every skill
 
 | Skill | Path | When to Use |
 | :--- | :--- | :--- |
-| **`design-system`** | `.agents/skills/design-system/SKILL.md` | Creating or modifying any UI component, typography role, spacing, color token, or layout in Daybreak. |
+| **`daybreak-design-skill`** | `.agents/skills/daybreak-design-skill/SKILL.md` | Creating or modifying any UI component, typography role, spacing, color token, or layout in Daybreak. |
 | **`security-audit`** | `.agents/skills/security-audit/SKILL.md` | Auditing ingestion parsers, URL sanitization, Markdown rendering, IMAP/env secret boundaries, or dependencies (Cloudflare `security-audit-skill`). |
 | **`browser-verification`** | `.agents/skills/browser-verification/SKILL.md` | Verifying `/`, `/read/[id]`, and `/style-guide` in a live dev server across dark/light themes and desktop/mobile viewports. |
 | **`tdd`** | `.agents/skills/tdd/SKILL.md` | Writing failing unit/integration tests before implementing features or bug fixes. |

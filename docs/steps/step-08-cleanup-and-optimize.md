@@ -8,7 +8,7 @@ Comprehensive codebase cleanup, performance optimization, repository governance 
 2. **Performance — Database Index & Bounded Sidebar**: Add SQLite index on `articles.ingestedAt` (`articles_ingested_at_idx`), add `DEFAULT_SIDEBAR_ARTICLE_LIMIT = 500` without UI buttons, and apply CSS `content-visibility: auto`. — **PASSED**
 3. **Performance — Ingest Optimization**: Single-pass `TreeWalker` DOM extraction, deduplicated `cleanArticleMarkdown()` execution, and bounded worker concurrency (`ARTICLE_FETCH_CONCURRENCY=3`). — **PASSED**
 4. **Performance — Request Deduplication**: Wrap `getArticleById` in `React.cache()` on `/read/[id]`, hoist markdown components, and stop double-calling image rewrite functions. — **PASSED**
-5. **Design System & Typography Gate**: Establish `.agents/skills/design-system/SKILL.md` (documenting `font-mono` on `<Wordmark>`, spacing, hierarchy, and composition) and enforce zero raw typography classes in routes/components via automated tests. — **PASSED**
+5. **Design System & Typography Gate**: Establish `.agents/skills/daybreak-design-skill/SKILL.md` (documenting `font-mono` on `<Wordmark>`, spacing, hierarchy, and composition) and enforce zero raw typography classes in routes/components via automated tests. — **PASSED**
 6. **Local Skills & Governance**: Install Cloudflare `security-audit-skill` locally into `.agents/skills/security-audit/`, align `BUILD_PROTOCOL.md`, `CONTEXT.md`, `DESIGN.md`, `AGENTS.md`, and add `scripts/verify.ps1`. — **PASSED**
 7. **Runtime & Browser Verification**: Start Next.js dev server, verify `/`, `/read/[id]`, `/style-guide` across dark and light color schemes with zero console errors, capture product screenshots, and embed them in `README.md`. — **PASSED**
 
@@ -19,7 +19,7 @@ Comprehensive codebase cleanup, performance optimization, repository governance 
 - `scripts/`: Cleaned up one-off diagnostic scripts (`inspect-article-images.ts`, `inspect-article-overlap.ts`, `inspect-chrome-leakage.ts`, `inspect-eml.ts`, `inspect-processed-emails.ts`, `imap-dry-run.ts`, `list-candidate-urls.ts`).
 - `.agents/skills/`:
   - Installed Cloudflare's `security-audit` skill into `.agents/skills/security-audit/`.
-  - Created `.agents/skills/design-system/SKILL.md`.
+  - Created `.agents/skills/daybreak-design-skill/SKILL.md`.
   - Created `.agents/skills/browser-verification/SKILL.md`.
   - Created `.agents/mcp_config.json.example`.
   - Removed loose outdated `.md` files in `.agents/skills/`.
