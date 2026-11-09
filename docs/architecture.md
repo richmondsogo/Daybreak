@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Daybreak (`medium-reader`) is a private, single-user reading application. It ingests Medium Daily Digest emails via the Internet Message Access Protocol (IMAP). A digest email is a daily summary email sent by Medium that highlights recommended articles. The system fetches article content, cleans and converts HTML into markdown, and stores records in a SQLite database using Write-Ahead Logging (WAL). It serves articles through a Next.js App Router reading interface. The design intentionally omits a separate REST or GraphQL API layer (see Architecture Decision Records ADR 0001 and ADR 0003).
+Daybreak (`medium-reader`) is a private, single-user reading application. It ingests Medium Daily Digest emails via the Internet Message Access Protocol (IMAP). A digest email is a daily summary email sent by Medium that highlights recommended articles. The system fetches article content, cleans and converts HTML into markdown, and stores records in an asynchronous SQLite database (supporting both local file-based SQLite and remote Turso cloud persistence). It serves articles through a Next.js App Router reading interface with an Edge single-user password gate. The design intentionally omits a separate REST or GraphQL API layer (see ADR 0001, ADR 0003, and ADR 0011).
 
 ## System Diagram
 
@@ -11,7 +11,7 @@ Daybreak (`medium-reader`) is a private, single-user reading application. It ing
                                   |
                                   v
 +-------------------------------------------------------------------+
-| Ingestion Pipeline (CLI cron via src/cli/fetch-digests.ts)        |
+| Ingestion Pipeline (Local CLI cron OR GitHub Actions cron)        |
 |  - IMAP Fetcher & MIME Parser (imapflow, mailparser)              |
 |  - Direct-First Fetcher Chain: Medium -> Freedium Mirror -> Raw   |
 |  - Subtitle Extraction & Validation Guards                        |
@@ -21,24 +21,29 @@ Daybreak (`medium-reader`) is a private, single-user reading application. It ing
                                   |
                                   v (writes)
 +-------------------------------------------------------------------+
-| SQLite Database (WAL mode, FTS5 full-text search)                 |
-| Managed via Drizzle ORM (src/db/schema.ts)                        |
+| SQLite Database Layer (@libsql/client + Drizzle ORM)              |
+|  - Local Runtime: Local File SQLite (WAL mode, FTS5)              |
+|  - Cloud Runtime: Remote Turso Database (HTTP/WebSocket)          |
+|  - Managed via Drizzle ORM (src/db/schema.ts)                     |
 +---------------------------------+---------------------------------+
                                   ^
                                   | (queries & mutations)
 +---------------------------------+---------------------------------+
 | Next.js App Router (Dynamic SSR via src/app)                      |
+|  - Edge Auth Middleware (src/middleware.ts & Web Crypto API)      |
+|  - Single-User Password Gate (/login & 30-day session cookie)     |
 |  - Single Cached DB Connection (globalThis.__mediumReaderDb)      |
-|  - React Server Components (direct DB reads)                      |
-|  - Server Actions (direct DB writes / status updates)             |
+|  - React Server Components (direct async DB reads)                |
+|  - Server Actions (direct async DB writes / status updates)       |
 |  - Resilient Image Pipeline (URL rewrite + retries + fallback)    |
 |  - Shared Design Tokens (src/components/ui/typography.tsx)        |
 +---------------------------------+---------------------------------+
                                   |
-                                  v (Private Network / Tailscale)
+                                  v (HTTPS / Vercel or Private Network)
 +-----------------------------------+
 | Reader Client (Clean Reading UI)  |
-| Routes: / and /read/[id]          |
+|  - Web / Mobile / Tablet Browser  |
+|  - Routes: / and /read/[id]       |
 +-----------------------------------+
 ```
 
@@ -81,21 +86,22 @@ The reader handles images through a two-part resilient pipeline:
 
 ### 4. Database Architecture and Concurrency (`src/db`)
 
-Data persistence uses SQLite with better-sqlite3 and Drizzle Object-Relational Mapping (ORM) (see ADR 0002).
+Data persistence is powered by `@libsql/client` and Drizzle ORM (see ADR 0002 and ADR 0011):
 
-- **Concurrency via WAL & Indexes**: SQLite operates in Write-Ahead Logging (`PRAGMA journal_mode = WAL`). The `articles` table features a dedicated B-tree index on `ingestedAt` (`articles_ingested_at_idx`) enabling instant reverse-chronological sorting. Sidebar queries are bounded to `DEFAULT_SIDEBAR_ARTICLE_LIMIT` (500 rows) by default to prevent unbounded memory and DOM expansion.
-- **Connection Management in Web Process**: The web server reuses a single cached database connection across requests. `getDb()` caches the instance on `globalThis.__mediumReaderDb` in `src/db/instance.ts` (see ADR 0010). On `/read/[id]`, database lookups are wrapped in `React.cache()` (`getArticleForRequest`) so `generateMetadata` and `ArticlePage` share a single query per request.
-- **CLI Connection Model**: CLI scripts create dedicated short-lived connections using `createDb()` in `src/db/client.ts`. Connections close automatically when CLI processes terminate.
+- **Dual-Mode Engine**: Supports both local SQLite files (`file:...`) and remote Turso cloud databases (`libsql://...`) with the exact same codebase and schema. All repository functions are asynchronous (`async/await`).
+- **Concurrency & Indexing**: In local mode, SQLite operates in Write-Ahead Logging (`PRAGMA journal_mode = WAL`). The `articles` table features a dedicated B-tree index on `ingestedAt` (`articles_ingested_at_idx`) enabling instant reverse-chronological sorting. Sidebar queries are bounded to `DEFAULT_SIDEBAR_ARTICLE_LIMIT` (500 rows) by default to prevent unbounded memory and DOM expansion.
+- **Connection Management in Web Process**: The web server caches a single database client on `globalThis.__mediumReaderDb` in `src/db/instance.ts` (see ADR 0010). On `/read/[id]`, database lookups are wrapped in `React.cache()` (`getArticleForRequest`) so `generateMetadata` and `ArticlePage` share a single query per request.
+- **CLI Connection Model**: CLI scripts create dedicated connections using `createDb()` in `src/db/client.ts`. Connections close automatically when CLI processes terminate.
 - **Full-Text Search**: An FTS5 virtual table indexes article titles, authors, and markdown content for fast text searches.
 
 ### 5. Environment Separation and Security (`src/lib`)
 
-The application enforces a strict two-schema environment configuration to protect sensitive credentials (see ADR 0010):
+The application enforces a strict security boundary to protect sensitive credentials (see ADR 0010 and ADR 0011):
 
-- **Web Runtime Schema (`src/lib/env.ts`)**: Validates only `DATABASE_PATH` and `LOG_LEVEL`. The web reader process never loads mail credentials or proxy configurations.
+- **Web Runtime Schema (`src/lib/env.ts`)**: Validates only `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `APP_PASSWORD`, `DATABASE_PATH`, and `LOG_LEVEL`. The web reader process never loads mail credentials or proxy configurations.
 - **Ingest Runtime Schema (`src/lib/ingest-env.ts`)**: Extends the base schema with `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `FREEDIUM_BASE_URLS`, `ARTICLE_FETCH_DELAY_MS`, and `INGEST_LOOKBACK_DAYS`.
 - **Lint Boundary Enforcement**: ESLint enforces a `no-restricted-imports` rule preventing `src/app/**` and `src/components/**` from importing `ingest-env`.
-- **Network Isolation**: The application deploys to a private network (such as Tailscale) without public ports or external authentication systems (see ADR 0005). Markdown rendering disables raw HTML to prevent script injection.
+- **Edge Auth Protection**: When `APP_PASSWORD` is configured, Next.js Edge Middleware (`src/middleware.ts`) protects all routes except `/login` and static assets. Session state is authenticated using the Web Crypto API (`crypto.subtle.digest`) and stored in an `HttpOnly`, `SameSite=Lax` 30-day cookie (`daybreak_session`). Markdown rendering disables raw HTML to prevent script injection.
 
 ### 6. Web Application and Dynamic Rendering (`src/app`)
 
@@ -104,34 +110,29 @@ The reader runs on the Next.js App Router without intermediate API endpoints (se
 - **Route Structure**:
   - `/`: Main two-pane layout showing the article sidebar and reading pane.
   - `/read/[id]`: Article reading view. Article URLs are generated using the `articlePath()` helper from `src/lib/routes.ts`.
+  - `/login`: Minimal single-user password authentication view.
   - `/style-guide`: Design token typography reference for development.
 - **Dynamic Rendering**: Reader routes enforce `export const dynamic = "force-dynamic"` (see ADR 0010). Server Components query SQLite directly on each request. Newly ingested articles and read-state mutations appear immediately in the sidebar without rebuilding the application.
-- **Branding and Typography**: The application brand name is `Daybreak` from `src/lib/brand.ts`. All textual styling uses centralized components from `src/components/ui/typography.tsx`.
+- **Branding and Typography**: The application brand name is `Daybreak` from `src/lib/brand.ts`. All textual styling uses centralized semantic components from `src/components/ui/typography.tsx`.
 
-## Running in Production
+---
 
-The production system runs the compiled Next.js application alongside scheduled ingestion jobs (see ADR 0010):
+## Production Deployment Models
 
-1. **Web Runtime**: Build and start the production server:
+Daybreak supports two production runtime models:
 
-```bash
-pnpm build
-```
+### Model A: Zero-Cost Cloud Deployment (Vercel + Turso + GitHub Actions)
+1. **Web App on Vercel**: Hosted on Vercel's free Hobby plan with custom domain [https://daybreak-reader.vercel.app](https://daybreak-reader.vercel.app). Environment variables configured: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `APP_PASSWORD`.
+2. **Database on Turso**: Serverless SQLite cloud database with high availability, daily retention, and zero maintenance.
+3. **Automated Background Ingestion**: GitHub Actions workflow (`.github/workflows/fetch-digests.yml`) runs twice daily (06:00 and 18:00 UTC) with zero hosting costs, connecting directly to Gmail IMAP and Turso.
 
-```bash
-pnpm start
-```
-
-2. **Ingest Job**: Schedule the ingestion CLI as a recurring background cron task:
-
-```bash
-pnpm fetch-digests
-```
-
-3. **Retention Purge**: Schedule periodic cleanup for articles older than 90 days:
-
-```bash
-pnpm purge-old-articles --confirm
-```
-
-4. **Database Concurrency**: The web process and background CLI processes read and write to the same SQLite file simultaneously through WAL mode.
+### Model B: Self-Hosted Local Server (Local Node.js + Local Cron)
+1. **Web Runtime**: Compiled Next.js server on a private network (e.g., Tailscale):
+   ```bash
+   pnpm build && pnpm start
+   ```
+2. **Ingest Job**: Local OS cron or systemd timer triggering `pnpm fetch-digests`.
+3. **Retention Purge**: Scheduled cleanup:
+   ```bash
+   pnpm purge-old-articles --confirm
+   ```
