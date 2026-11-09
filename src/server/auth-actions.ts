@@ -21,7 +21,7 @@ export async function loginAction(password: string): Promise<LoginResult> {
     return { success: false, error: "Incorrect password" };
   }
 
-  const token = getExpectedSessionToken(configuredPassword);
+  const token = await getExpectedSessionToken(configuredPassword);
   const cookieStore = await cookies();
 
   cookieStore.set(SESSION_COOKIE_NAME, token, {

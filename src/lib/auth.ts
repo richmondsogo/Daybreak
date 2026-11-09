@@ -1,7 +1,9 @@
-import { createHash } from "node:crypto";
-
 export const SESSION_COOKIE_NAME = "daybreak_session";
 
-export function getExpectedSessionToken(password: string): string {
-  return createHash("sha256").update(`daybreak-auth:${password}`).digest("hex");
+export async function getExpectedSessionToken(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`daybreak-auth:${password}`);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }

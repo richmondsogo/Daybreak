@@ -37,7 +37,7 @@ describe("auth-actions", () => {
     expect(res.success).toBe(true);
     expect(mockSet).toHaveBeenCalledWith(
       "daybreak_session",
-      getExpectedSessionToken("correct-horse-battery-staple"),
+      await getExpectedSessionToken("correct-horse-battery-staple"),
       expect.objectContaining({
         httpOnly: true,
         sameSite: "lax",
