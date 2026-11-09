@@ -3,6 +3,9 @@ import { z } from "zod";
 export const envSchema = z.object({
   DATABASE_PATH: z.string().default("./data/medium-reader.db"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  TURSO_DATABASE_URL: z.string().optional(),
+  TURSO_AUTH_TOKEN: z.string().optional(),
+  APP_PASSWORD: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

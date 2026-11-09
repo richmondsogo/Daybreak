@@ -17,6 +17,23 @@ describe("ingest env configuration", () => {
     expect(config.ARTICLE_FETCH_DELAY_MS).toBe(1500);
     expect(config.ARTICLE_FETCH_CONCURRENCY).toBe(3);
     expect(config.INGEST_LOOKBACK_DAYS).toBe(14);
+    expect(config.TURSO_DATABASE_URL).toBeUndefined();
+    expect(config.TURSO_AUTH_TOKEN).toBeUndefined();
+    expect(config.APP_PASSWORD).toBeUndefined();
+  });
+
+  it("parses Turso and auth environment variables in ingest", () => {
+    const config = parseIngestEnv({
+      GMAIL_USER: "test@example.com",
+      GMAIL_APP_PASSWORD: "test-password",
+      TURSO_DATABASE_URL: "libsql://example.turso.io",
+      TURSO_AUTH_TOKEN: "turso-auth-token",
+      APP_PASSWORD: "my-app-password",
+    });
+
+    expect(config.TURSO_DATABASE_URL).toBe("libsql://example.turso.io");
+    expect(config.TURSO_AUTH_TOKEN).toBe("turso-auth-token");
+    expect(config.APP_PASSWORD).toBe("my-app-password");
   });
 
   it("parses valid custom environment variables", () => {
