@@ -7,7 +7,11 @@ declare global {
 
 export function getDb(): DbClient {
   if (!globalThis.__mediumReaderDb) {
-    globalThis.__mediumReaderDb = createDb(env.DATABASE_PATH);
+    const url = env.TURSO_DATABASE_URL || env.DATABASE_PATH;
+    globalThis.__mediumReaderDb = createDb({
+      url,
+      authToken: env.TURSO_AUTH_TOKEN,
+    });
   }
   return globalThis.__mediumReaderDb;
 }

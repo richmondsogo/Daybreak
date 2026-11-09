@@ -1,22 +1,50 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { createClient } from "@libsql/client";
+import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import * as schema from "./schema";
 import fs from "node:fs";
 import path from "node:path";
 
-export function createDb(dbPath: string) {
-  if (dbPath !== ":memory:") {
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+export interface DbConfig {
+  url: string;
+  authToken?: string;
+}
+
+export function createDb(configOrPath: string | DbConfig) {
+  const config: DbConfig =
+    typeof configOrPath === "string" ? { url: configOrPath } : configOrPath;
+
+  let url = config.url;
+  if (url !== ":memory:" && !url.startsWith("libsql://") && !url.startsWith("http://") && !url.startsWith("https://")) {
+    const rawPath = url.startsWith("file:") ? url.slice(5) : url;
+    const resolvedPath = path.resolve(rawPath);
+    fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+    url = `file:${resolvedPath}`;
   }
-  const sqlite = new Database(dbPath);
-  sqlite.pragma("journal_mode = WAL");
-  const db = drizzle(sqlite, { schema });
 
-  const migrationsFolder = path.resolve(process.cwd(), "drizzle/migrations");
-  migrate(db, { migrationsFolder });
+  const client = createClient({
+    url,
+    authToken: config.authToken,
+  });
 
+  return drizzle(client, { schema });
+}
+
+export async function migrateDb(
+  db: LibSQLDatabase<typeof schema>,
+  migrationsFolder?: string
+) {
+  const folder =
+    migrationsFolder ?? path.resolve(process.cwd(), "drizzle/migrations");
+  await migrate(db, { migrationsFolder: folder });
+}
+
+export async function createMigratedDb(
+  configOrPath: string | DbConfig = ":memory:"
+) {
+  const db = createDb(configOrPath);
+  await migrateDb(db);
   return db;
 }
 
-export type DbClient = ReturnType<typeof createDb>;
+export type DbClient = LibSQLDatabase<typeof schema>;
