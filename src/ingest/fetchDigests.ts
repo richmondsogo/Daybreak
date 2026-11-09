@@ -38,7 +38,7 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
   } = deps;
   const workerCount = Math.max(1, Math.floor(concurrency));
 
-  const runId = startIngestRun(db);
+  const runId = await startIngestRun(db);
   const errorSummary: Array<{ context: string; message: string }> = [];
 
   const summary: FinishIngestRunParams = {
@@ -61,7 +61,7 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
     let emailsFullyFailed = 0;
 
     for (const email of emails) {
-      if (isEmailProcessed(db, email.messageId)) {
+      if (await isEmailProcessed(db, email.messageId)) {
         // Skip entirely
         continue;
       }
@@ -141,7 +141,7 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
             ingestedAt: new Date().toISOString(),
           };
 
-          upsertArticle(db, insertData);
+          await upsertArticle(db, insertData);
           summary.articlesUpserted++;
         } catch (err) {
           summary.articlesFailed++;
@@ -168,7 +168,7 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
       await Promise.all(workers);
 
       // Mark processed even if some articles failed, but not if the parse/fetch itself threw completely
-      markEmailProcessed(db, email.messageId, articlesCount);
+      await markEmailProcessed(db, email.messageId, articlesCount);
       summary.emailsProcessed++;
     }
 
@@ -192,6 +192,6 @@ export async function fetchDigests(deps: FetchDigestsDeps): Promise<FinishIngest
     summary.errorSummary = errorSummary;
   }
 
-  finishIngestRun(db, runId, summary);
+  await finishIngestRun(db, runId, summary);
   return summary;
 }

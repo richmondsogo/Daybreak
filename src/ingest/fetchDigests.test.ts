@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fetchDigests } from "./fetchDigests";
 import { FakeImapClient } from "./fakeImapClient";
-import { createDb } from "../db/client";
+import { createMigratedDb } from "../db/client";
 import { processedEmails, articles } from "../db/schema";
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +19,7 @@ describe("fetchDigests orchestrator", () => {
   };
 
   it("a. First run: processes digest, upserts all articles, marks email processed, run status success", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([{
       uid: 1,
       messageId: "test-msg-1",
@@ -59,16 +59,16 @@ describe("fetchDigests orchestrator", () => {
     expect(result.articlesFailed).toBe(0);
 
     // Verify DB state
-    const processed = db.select().from(processedEmails).all();
+    const processed = await db.select().from(processedEmails).all();
     expect(processed).toHaveLength(1);
     expect(processed[0].messageId).toBe("test-msg-1");
 
-    const insertedArticles = db.select().from(articles).all();
+    const insertedArticles = await db.select().from(articles).all();
     expect(insertedArticles).toHaveLength(15);
   });
 
   it("b. Second run: skips processed email", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([{
       uid: 1,
       messageId: "test-msg-1",
@@ -110,12 +110,12 @@ describe("fetchDigests orchestrator", () => {
     expect(fetchCalled).toBe(false);
 
     // DB remains unchanged for articles
-    const insertedArticles = db.select().from(articles).all();
+    const insertedArticles = await db.select().from(articles).all();
     expect(insertedArticles).toHaveLength(0);
   });
 
   it("c. Partial failure: one article fetch rejects, others succeed", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([{
       uid: 1,
       messageId: "test-msg-1",
@@ -156,16 +156,16 @@ describe("fetchDigests orchestrator", () => {
     expect(result.errorSummary).toBeDefined();
 
     // Verify DB state
-    const processed = db.select().from(processedEmails).all();
+    const processed = await db.select().from(processedEmails).all();
     expect(processed).toHaveLength(1);
     expect(processed[0].messageId).toBe("test-msg-1");
 
-    const insertedArticles = db.select().from(articles).all();
+    const insertedArticles = await db.select().from(articles).all();
     expect(insertedArticles).toHaveLength(14);
   });
 
   it("d. Parser failure: malformed raw buffer alongside a good one", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([
       {
         uid: 1,
@@ -208,7 +208,7 @@ describe("fetchDigests orchestrator", () => {
     expect(result.emailsProcessed).toBe(1); // Only the good one
     expect(result.articlesUpserted).toBe(15); // Good one has 15 articles
 
-    const processed = db.select().from(processedEmails).all();
+    const processed = await db.select().from(processedEmails).all();
     expect(processed).toHaveLength(1);
     expect(processed[0].messageId).toBe("good-msg");
     expect(result.errorSummary).toBeDefined();
@@ -219,7 +219,7 @@ describe("fetchDigests orchestrator", () => {
   });
 
   it("e. Verifies delay function called expected number of times", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([{
       uid: 1,
       messageId: "test-msg-1",
@@ -257,7 +257,7 @@ describe("fetchDigests orchestrator", () => {
   });
 
   it("f. Direct article with residual chrome markers records soft warning in errorSummary without failing", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([{
       uid: 1,
       messageId: "test-msg-1",
@@ -299,7 +299,7 @@ describe("fetchDigests orchestrator", () => {
   });
 
   it("g. Processes articles with bounded concurrency and reuses pre-cleaned markdown", async () => {
-    const db = createDb(":memory:");
+    const db = await createMigratedDb(":memory:");
     const imapClient = new FakeImapClient([{
       uid: 1,
       messageId: "test-msg-concurrent",

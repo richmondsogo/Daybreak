@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseBackfillArgs, runBackfillSubtitles } from "./backfill-subtitles";
-import { createDb } from "../db/client";
+import { createMigratedDb } from "../db/client";
 import { upsertArticle, getArticleById } from "../db/articles";
 
 describe("backfill-subtitles CLI", () => {
@@ -44,13 +44,15 @@ describe("backfill-subtitles CLI", () => {
 
   describe("runBackfillSubtitles integration logic (mock network)", () => {
     it("dry-run mode does not write anything to database", async () => {
-      const db = createDb(":memory:");
-      const art = upsertArticle(db, {
-        url: "https://example.com/dry-run-art",
-        title: "Dry Run Article",
-        snippet: "A great teaser snippet...",
-        contentMarkdown: "Here is the article body text.",
-      }).row;
+      const db = await createMigratedDb(":memory:");
+      const art = (
+        await upsertArticle(db, {
+          url: "https://example.com/dry-run-art",
+          title: "Dry Run Article",
+          snippet: "A great teaser snippet...",
+          contentMarkdown: "Here is the article body text.",
+        })
+      ).row;
 
       const mockFetch = vi.fn().mockResolvedValue({
         html: '<html><head><meta property="og:description" content="A great teaser subtitle" /></head><body></body></html>',
@@ -68,18 +70,20 @@ describe("backfill-subtitles CLI", () => {
       );
 
       // Verify the row in memory was NOT updated
-      const fetched = getArticleById(db, art.id);
+      const fetched = await getArticleById(db, art.id);
       expect(fetched?.subtitle).toBeNull();
     });
 
     it("apply mode writes extracted subtitle to database", async () => {
-      const db = createDb(":memory:");
-      const art = upsertArticle(db, {
-        url: "https://example.com/apply-art",
-        title: "Apply Article",
-        snippet: "Snippet...",
-        contentMarkdown: "Body text here.",
-      }).row;
+      const db = await createMigratedDb(":memory:");
+      const art = (
+        await upsertArticle(db, {
+          url: "https://example.com/apply-art",
+          title: "Apply Article",
+          snippet: "Snippet...",
+          contentMarkdown: "Body text here.",
+        })
+      ).row;
 
       const mockFetch = vi.fn().mockResolvedValue({
         html: '<html><head><meta property="og:description" content="An applied subtitle" /></head><body></body></html>',
@@ -96,7 +100,7 @@ describe("backfill-subtitles CLI", () => {
         }
       );
 
-      const fetched = getArticleById(db, art.id);
+      const fetched = await getArticleById(db, art.id);
       expect(fetched?.subtitle).toBe("An applied subtitle");
     });
   });

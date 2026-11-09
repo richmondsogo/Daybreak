@@ -54,7 +54,15 @@ export async function runBackfillSubtitles(
   options: BackfillCliOptions,
   deps: BackfillDeps = {}
 ) {
-  const db = deps.db ?? createDb(deps.dbPath ?? path.resolve(process.cwd(), env.DATABASE_PATH));
+  const db =
+    deps.db ??
+    createDb({
+      url:
+        env.TURSO_DATABASE_URL ||
+        deps.dbPath ||
+        path.resolve(process.cwd(), env.DATABASE_PATH),
+      authToken: env.TURSO_AUTH_TOKEN,
+    });
   const fetchFn = deps.httpFetch ?? httpFetch;
   const freediumBaseUrls = deps.freediumBaseUrls ?? env.FREEDIUM_BASE_URLS;
   const delayMs = deps.articleFetchDelayMs ?? env.ARTICLE_FETCH_DELAY_MS;
@@ -65,7 +73,7 @@ export async function runBackfillSubtitles(
   console.log(`Limit: ${options.limit === null ? "all" : options.limit}`);
   console.log(`Delay between articles: ${delayMs}ms`);
 
-  const missing = listArticlesMissingSubtitle(db);
+  const missing = await listArticlesMissingSubtitle(db);
   console.log(`Found ${missing.length} article(s) with subtitle IS NULL.`);
 
   const targetArticles = options.limit !== null ? missing.slice(0, options.limit) : missing;
@@ -88,7 +96,7 @@ export async function runBackfillSubtitles(
 
   for (let i = 0; i < targetArticles.length; i++) {
     const art = targetArticles[i];
-    const stored = getArticleById(db, art.id);
+    const stored = await getArticleById(db, art.id);
     const bodyMarkdown = cleanArticleMarkdown(stored?.contentMarkdown ?? "", art.title);
 
     let extracted: ExtractSubtitleResult | null = null;
@@ -192,7 +200,7 @@ export async function runBackfillSubtitles(
 
     // Write only in apply mode and only if fetch didn't completely fail
     if (options.apply && extracted !== null) {
-      setArticleSubtitle(db, art.id, extracted.subtitle);
+      await setArticleSubtitle(db, art.id, extracted.subtitle);
     }
 
     // Rate limiting delay

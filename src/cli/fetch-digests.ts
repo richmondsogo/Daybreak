@@ -10,8 +10,11 @@ async function main() {
   let db;
   let imapClient;
   try {
-    const dbPath = path.resolve(process.cwd(), env.DATABASE_PATH);
-    db = createDb(dbPath);
+    const url = env.TURSO_DATABASE_URL || path.resolve(process.cwd(), env.DATABASE_PATH);
+    db = createDb({
+      url,
+      authToken: env.TURSO_AUTH_TOKEN,
+    });
     imapClient = new ImapflowClient();
 
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
