@@ -4,7 +4,9 @@ import type { DbClient } from "./client";
 
 export type FetchStatus = "ok" | "partial" | "failed";
 
-export function getFetchStatusRank(status: FetchStatus | null | undefined): number {
+export function getFetchStatusRank(
+  status: FetchStatus | null | undefined
+): number {
   if (status === "ok") return 3;
   if (status === "partial") return 2;
   if (status === "failed") return 1;
@@ -13,19 +15,32 @@ export function getFetchStatusRank(status: FetchStatus | null | undefined): numb
 
 export type InsertArticle = typeof articles.$inferInsert;
 
-export function upsertArticle(db: DbClient, article: InsertArticle) {
-  const existing = db.select().from(articles).where(eq(articles.url, article.url)).get();
+export async function upsertArticle(db: DbClient, article: InsertArticle) {
+  const existing = await db
+    .select()
+    .from(articles)
+    .where(eq(articles.url, article.url))
+    .get();
 
   if (!existing) {
-    const inserted = db.insert(articles).values(article).returning().get();
+    const inserted = await db
+      .insert(articles)
+      .values(article)
+      .returning()
+      .get();
     return { row: inserted, action: "inserted" as const };
   }
 
-  const existingRank = getFetchStatusRank(existing.fetchStatus as FetchStatus | null | undefined);
-  const newRank = getFetchStatusRank(article.fetchStatus as FetchStatus | null | undefined);
+  const existingRank = getFetchStatusRank(
+    existing.fetchStatus as FetchStatus | null | undefined
+  );
+  const newRank = getFetchStatusRank(
+    article.fetchStatus as FetchStatus | null | undefined
+  );
 
   if (newRank >= existingRank) {
-    const updated = db.update(articles)
+    const updated = await db
+      .update(articles)
       .set({
         title: article.title,
         authorName: article.authorName,
@@ -46,7 +61,7 @@ export function upsertArticle(db: DbClient, article: InsertArticle) {
         claps: article.claps,
         responses: article.responses,
         publishedDate: article.publishedDate,
-        updatedAt: article.updatedAt ?? new Date().toISOString()
+        updatedAt: article.updatedAt ?? new Date().toISOString(),
       })
       .where(eq(articles.url, article.url))
       .returning()
@@ -58,16 +73,26 @@ export function upsertArticle(db: DbClient, article: InsertArticle) {
   return { row: existing, action: "unchanged" as const };
 }
 
-export function setArticleRead(db: DbClient, id: number, isRead: boolean) {
-  return db.update(articles)
+export async function setArticleRead(
+  db: DbClient,
+  id: number,
+  isRead: boolean
+) {
+  return await db
+    .update(articles)
     .set({ isRead, updatedAt: new Date().toISOString() })
     .where(eq(articles.id, id))
     .returning()
     .get();
 }
 
-export function setArticleSaved(db: DbClient, id: number, isSaved: boolean) {
-  return db.update(articles)
+export async function setArticleSaved(
+  db: DbClient,
+  id: number,
+  isSaved: boolean
+) {
+  return await db
+    .update(articles)
     .set({ isSaved, updatedAt: new Date().toISOString() })
     .where(eq(articles.id, id))
     .returning()
@@ -81,30 +106,38 @@ function purgeCandidatesCondition(olderThanIso: string): SQL {
   )!;
 }
 
-export function countPurgeCandidates(db: DbClient, olderThanIso: string): number {
-  const result = db.select({ value: count() })
+export async function countPurgeCandidates(
+  db: DbClient,
+  olderThanIso: string
+): Promise<number> {
+  const result = await db
+    .select({ value: count() })
     .from(articles)
     .where(purgeCandidatesCondition(olderThanIso))
     .get();
   return result?.value ?? 0;
 }
 
-export function purgeOldArticles(db: DbClient, olderThanIso: string) {
-  const result = db.delete(articles)
+export async function purgeOldArticles(
+  db: DbClient,
+  olderThanIso: string
+): Promise<number> {
+  const result = await db
+    .delete(articles)
     .where(purgeCandidatesCondition(olderThanIso))
     .run();
 
-  return result.changes;
+  return result.rowsAffected;
 }
 
 export const DEFAULT_SIDEBAR_ARTICLE_LIMIT = 500;
 
-export function listArticles(
+export async function listArticles(
   db: DbClient,
   options: { limit?: number } = {}
 ) {
   const limit = options.limit ?? DEFAULT_SIDEBAR_ARTICLE_LIMIT;
-  return db
+  return await db
     .select({
       id: articles.id,
       title: articles.title,
@@ -120,18 +153,22 @@ export function listArticles(
     .all();
 }
 
-export type SidebarArticle = ReturnType<typeof listArticles>[number];
+export type SidebarArticle = Awaited<ReturnType<typeof listArticles>>[number];
 
-export function getArticleById(db: DbClient, id: number) {
-  return db
+export async function getArticleById(db: DbClient, id: number) {
+  return await db
     .select()
     .from(articles)
     .where(eq(articles.id, id))
     .get();
 }
 
-export function setArticleSubtitle(db: DbClient, id: number, subtitle: string) {
-  return db
+export async function setArticleSubtitle(
+  db: DbClient,
+  id: number,
+  subtitle: string
+) {
+  return await db
     .update(articles)
     .set({ subtitle, updatedAt: new Date().toISOString() })
     .where(eq(articles.id, id))
@@ -139,8 +176,8 @@ export function setArticleSubtitle(db: DbClient, id: number, subtitle: string) {
     .get();
 }
 
-export function listArticlesMissingSubtitle(db: DbClient) {
-  return db
+export async function listArticlesMissingSubtitle(db: DbClient) {
+  return await db
     .select({
       id: articles.id,
       url: articles.url,
@@ -153,4 +190,3 @@ export function listArticlesMissingSubtitle(db: DbClient) {
     .orderBy(asc(articles.id))
     .all();
 }
-

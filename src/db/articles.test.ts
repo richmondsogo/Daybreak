@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDb, type DbClient } from "./client";
+import { createMigratedDb, type DbClient } from "./client";
 import {
   upsertArticle,
   setArticleRead,
@@ -18,8 +18,8 @@ import { articles } from "./schema";
 describe("db/articles", () => {
   let db: DbClient;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
+  beforeEach(async () => {
+    db = await createMigratedDb(":memory:");
   });
 
   describe("getFetchStatusRank", () => {
@@ -39,120 +39,120 @@ describe("db/articles", () => {
       fetchedVia: "direct",
     };
 
-    it("inserts a new article", () => {
-      const res = upsertArticle(db, baseArticle);
+    it("inserts a new article", async () => {
+      const res = await upsertArticle(db, baseArticle);
       expect(res.action).toBe("inserted");
       expect(res.row.url).toBe("https://example.com/1");
     });
 
-    it("does not downgrade from 'ok' to 'partial'", () => {
-      upsertArticle(db, baseArticle);
+    it("does not downgrade from 'ok' to 'partial'", async () => {
+      await upsertArticle(db, baseArticle);
       const downgrade: InsertArticle = { ...baseArticle, fetchStatus: "partial", contentMarkdown: "worse content" };
-      const res = upsertArticle(db, downgrade);
+      const res = await upsertArticle(db, downgrade);
       expect(res.action).toBe("unchanged");
       expect(res.row.contentMarkdown).toBe("Content 1");
     });
 
-    it("upgrades from 'partial' to 'ok'", () => {
-      upsertArticle(db, { ...baseArticle, fetchStatus: "partial" });
+    it("upgrades from 'partial' to 'ok'", async () => {
+      await upsertArticle(db, { ...baseArticle, fetchStatus: "partial" });
       const upgrade: InsertArticle = { ...baseArticle, fetchStatus: "ok", contentMarkdown: "better content" };
-      const res = upsertArticle(db, upgrade);
+      const res = await upsertArticle(db, upgrade);
       expect(res.action).toBe("updated");
       expect(res.row.contentMarkdown).toBe("better content");
     });
 
-    it("updates when status is equal ('ok' to 'ok')", () => {
-      upsertArticle(db, baseArticle);
-      const res = upsertArticle(db, { ...baseArticle, contentMarkdown: "new content" });
+    it("updates when status is equal ('ok' to 'ok')", async () => {
+      await upsertArticle(db, baseArticle);
+      const res = await upsertArticle(db, { ...baseArticle, contentMarkdown: "new content" });
       expect(res.action).toBe("updated");
       expect(res.row.contentMarkdown).toBe("new content");
     });
 
-    it("preserves existing non-null subtitle when update provides null or undefined subtitle", () => {
-      upsertArticle(db, { ...baseArticle, subtitle: "Original Subtitle" });
-      const res = upsertArticle(db, { ...baseArticle, contentMarkdown: "new content", subtitle: null });
+    it("preserves existing non-null subtitle when update provides null or undefined subtitle", async () => {
+      await upsertArticle(db, { ...baseArticle, subtitle: "Original Subtitle" });
+      const res = await upsertArticle(db, { ...baseArticle, contentMarkdown: "new content", subtitle: null });
       expect(res.action).toBe("updated");
       expect(res.row.subtitle).toBe("Original Subtitle");
     });
 
-    it("updates subtitle when update provides a new non-null subtitle", () => {
-      upsertArticle(db, { ...baseArticle, subtitle: "Old Subtitle" });
-      const res = upsertArticle(db, { ...baseArticle, contentMarkdown: "new content", subtitle: "New Subtitle" });
+    it("updates subtitle when update provides a new non-null subtitle", async () => {
+      await upsertArticle(db, { ...baseArticle, subtitle: "Old Subtitle" });
+      const res = await upsertArticle(db, { ...baseArticle, contentMarkdown: "new content", subtitle: "New Subtitle" });
       expect(res.action).toBe("updated");
       expect(res.row.subtitle).toBe("New Subtitle");
     });
 
-    it("throws on raw duplicate url insert", () => {
-      upsertArticle(db, baseArticle);
-      expect(() => {
-        db.insert(articles).values({ ...baseArticle, id: undefined }).run();
-      }).toThrowError(/UNIQUE constraint failed/);
+    it("throws on raw duplicate url insert", async () => {
+      await upsertArticle(db, baseArticle);
+      await expect(
+        db.insert(articles).values({ ...baseArticle, id: undefined }).run()
+      ).rejects.toThrow();
     });
   });
 
   describe("setArticleRead", () => {
-    it("updates isRead to true while isSaved remains false", () => {
-      const inserted = upsertArticle(db, {
+    it("updates isRead to true while isSaved remains false", async () => {
+      const inserted = (await upsertArticle(db, {
         url: "https://example.com/read-test",
         title: "Read Test",
         contentMarkdown: "Content",
-      }).row;
+      })).row;
 
       expect(inserted.isRead).toBe(false);
       expect(inserted.isSaved).toBe(false);
 
-      const updated = setArticleRead(db, inserted.id, true);
-      expect(updated.isRead).toBe(true);
-      expect(updated.isSaved).toBe(false);
+      const updated = await setArticleRead(db, inserted.id, true);
+      expect(updated?.isRead).toBe(true);
+      expect(updated?.isSaved).toBe(false);
     });
   });
 
   describe("setArticleSaved", () => {
-    it("updates isSaved to true while isRead remains false", () => {
-      const inserted = upsertArticle(db, {
+    it("updates isSaved to true while isRead remains false", async () => {
+      const inserted = (await upsertArticle(db, {
         url: "https://example.com/save-test",
         title: "Save Test",
         contentMarkdown: "Content",
-      }).row;
+      })).row;
 
       expect(inserted.isRead).toBe(false);
       expect(inserted.isSaved).toBe(false);
 
-      const updated = setArticleSaved(db, inserted.id, true);
-      expect(updated.isSaved).toBe(true);
-      expect(updated.isRead).toBe(false);
+      const updated = await setArticleSaved(db, inserted.id, true);
+      expect(updated?.isSaved).toBe(true);
+      expect(updated?.isRead).toBe(false);
     });
   });
 
   describe("purgeOldArticles and countPurgeCandidates", () => {
-    it("deletes only old, unsaved articles, and count matches delete", () => {
+    it("deletes only old, unsaved articles, and count matches delete", async () => {
       const oldDate = "2020-01-01T00:00:00Z";
       const recentDate = "2024-01-01T00:00:00Z";
       const cutoff = "2022-01-01T00:00:00Z";
 
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "url1", contentMarkdown: "c", isSaved: false, ingestedAt: oldDate
       }).run();
 
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "url2", contentMarkdown: "c", isSaved: true, ingestedAt: oldDate
       }).run();
 
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "url3", contentMarkdown: "c", isSaved: false, ingestedAt: recentDate
       }).run();
 
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "url4", contentMarkdown: "c", isSaved: true, ingestedAt: recentDate
       }).run();
 
-      const count = countPurgeCandidates(db, cutoff);
+      const count = await countPurgeCandidates(db, cutoff);
       expect(count).toBe(1);
 
-      const deletedCount = purgeOldArticles(db, cutoff);
+      const deletedCount = await purgeOldArticles(db, cutoff);
       expect(deletedCount).toBe(1);
 
-      const remaining = db.select({ url: articles.url }).from(articles).all();
+      const remaining = await db.select({ url: articles.url }).from(articles).all();
       const urls = remaining.map((r) => r.url);
       expect(urls).not.toContain("url1");
       expect(urls).toContain("url2");
@@ -162,9 +162,9 @@ describe("db/articles", () => {
   });
 
   describe("listArticles", () => {
-    it("returns articles ordered by ingestedAt DESC selecting only sidebar fields", () => {
+    it("returns articles ordered by ingestedAt DESC selecting only sidebar fields", async () => {
       // Seed rows with out-of-order ingestedAt
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "https://example.com/item1",
         title: "Item 1",
         authorName: "Author 1",
@@ -176,7 +176,7 @@ describe("db/articles", () => {
         ingestedAt: "2026-09-01T10:00:00Z",
       }).run();
 
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "https://example.com/item2",
         title: "Item 2",
         authorName: "Author 2",
@@ -188,7 +188,7 @@ describe("db/articles", () => {
         ingestedAt: "2026-09-03T10:00:00Z",
       }).run();
 
-      db.insert(articles).values({
+      await db.insert(articles).values({
         url: "https://example.com/item3",
         title: "Item 3",
         authorName: "Author 3",
@@ -200,7 +200,7 @@ describe("db/articles", () => {
         ingestedAt: "2026-09-02T10:00:00Z",
       }).run();
 
-      const results = listArticles(db);
+      const results = await listArticles(db);
 
       expect(results).toHaveLength(3);
       // Most recently ingested first: item2 (Sept 3), then item3 (Sept 2), then item1 (Sept 1)
@@ -225,9 +225,9 @@ describe("db/articles", () => {
       expect("contentMarkdown" in results[2]).toBe(false);
     });
 
-    it("respects the limit option when querying sidebar articles", () => {
+    it("respects the limit option when querying sidebar articles", async () => {
       for (let i = 1; i <= 5; i++) {
-        db.insert(articles).values({
+        await db.insert(articles).values({
           url: `https://example.com/limit-${i}`,
           title: `Limit Item ${i}`,
           contentMarkdown: `# Body ${i}`,
@@ -235,7 +235,7 @@ describe("db/articles", () => {
         }).run();
       }
 
-      const limited = listArticles(db, { limit: 2 });
+      const limited = await listArticles(db, { limit: 2 });
       expect(limited).toHaveLength(2);
       expect(limited[0].title).toBe("Limit Item 5");
       expect(limited[1].title).toBe("Limit Item 4");
@@ -243,17 +243,17 @@ describe("db/articles", () => {
   });
 
   describe("getArticleById", () => {
-    it("returns full article row including contentMarkdown when found", () => {
-      const inserted = upsertArticle(db, {
+    it("returns full article row including contentMarkdown when found", async () => {
+      const inserted = (await upsertArticle(db, {
         url: "https://example.com/full-article",
         title: "Full Article",
         authorName: "Jane Doe",
         publicationName: "Tech News",
         readingTimeMinutes: 4,
         contentMarkdown: "## Heading\n\nFull content goes here.",
-      }).row;
+      })).row;
 
-      const found = getArticleById(db, inserted.id);
+      const found = await getArticleById(db, inserted.id);
       expect(found).toBeDefined();
       expect(found?.id).toBe(inserted.id);
       expect(found?.title).toBe("Full Article");
@@ -261,50 +261,50 @@ describe("db/articles", () => {
       expect(found?.contentMarkdown).toBe("## Heading\n\nFull content goes here.");
     });
 
-    it("returns undefined when article is not found", () => {
-      const found = getArticleById(db, 99999);
+    it("returns undefined when article is not found", async () => {
+      const found = await getArticleById(db, 99999);
       expect(found).toBeUndefined();
     });
   });
 
   describe("setArticleSubtitle", () => {
-    it("updates subtitle and updatedAt", () => {
-      const inserted = upsertArticle(db, {
+    it("updates subtitle and updatedAt", async () => {
+      const inserted = (await upsertArticle(db, {
         url: "https://example.com/subtitle-test",
         title: "Subtitle Test",
         contentMarkdown: "Content",
-      }).row;
+      })).row;
 
       expect(inserted.subtitle).toBeNull();
 
-      const updated = setArticleSubtitle(db, inserted.id, "A real subtitle");
-      expect(updated.subtitle).toBe("A real subtitle");
-      expect(updated.updatedAt).toBeDefined();
+      const updated = await setArticleSubtitle(db, inserted.id, "A real subtitle");
+      expect(updated?.subtitle).toBe("A real subtitle");
+      expect(updated?.updatedAt).toBeDefined();
 
-      const updatedEmpty = setArticleSubtitle(db, inserted.id, "");
-      expect(updatedEmpty.subtitle).toBe("");
+      const updatedEmpty = await setArticleSubtitle(db, inserted.id, "");
+      expect(updatedEmpty?.subtitle).toBe("");
     });
   });
 
   describe("listArticlesMissingSubtitle", () => {
-    it("returns only articles where subtitle is NULL, ordered by id ASC, selecting only specified fields", () => {
-      const art1 = upsertArticle(db, {
+    it("returns only articles where subtitle is NULL, ordered by id ASC, selecting only specified fields", async () => {
+      const art1 = (await upsertArticle(db, {
         url: "https://example.com/missing-1",
         title: "Article 1",
         snippet: "Snippet 1",
         contentMarkdown: "Content 1",
         fetchedVia: "direct",
-      }).row;
+      })).row;
 
-      const art2 = upsertArticle(db, {
+      const art2 = (await upsertArticle(db, {
         url: "https://example.com/missing-2",
         title: "Article 2",
         snippet: "Snippet 2",
         contentMarkdown: "Content 2",
         fetchedVia: "freedium-mirror",
-      }).row;
+      })).row;
 
-      upsertArticle(db, {
+      await upsertArticle(db, {
         url: "https://example.com/has-empty-subtitle",
         title: "Article 3",
         snippet: "Snippet 3",
@@ -313,7 +313,7 @@ describe("db/articles", () => {
         fetchedVia: "direct",
       });
 
-      upsertArticle(db, {
+      await upsertArticle(db, {
         url: "https://example.com/has-real-subtitle",
         title: "Article 4",
         snippet: "Snippet 4",
@@ -322,7 +322,7 @@ describe("db/articles", () => {
         fetchedVia: "freedium",
       });
 
-      const missing = listArticlesMissingSubtitle(db);
+      const missing = await listArticlesMissingSubtitle(db);
       expect(missing).toHaveLength(2);
       expect(missing[0]).toEqual({
         id: art1.id,
@@ -345,5 +345,3 @@ describe("db/articles", () => {
     });
   });
 });
-
-

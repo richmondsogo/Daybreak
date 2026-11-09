@@ -2,10 +2,11 @@ import { eq } from "drizzle-orm";
 import { ingestRuns } from "./schema";
 import type { DbClient } from "./client";
 
-export function startIngestRun(db: DbClient): number {
-  const run = db.insert(ingestRuns)
+export async function startIngestRun(db: DbClient): Promise<number> {
+  const run = await db
+    .insert(ingestRuns)
     .values({
-      startedAt: new Date().toISOString()
+      startedAt: new Date().toISOString(),
     })
     .returning({ id: ingestRuns.id })
     .get();
@@ -21,8 +22,13 @@ export type FinishIngestRunParams = {
   errorSummary?: unknown | null;
 };
 
-export function finishIngestRun(db: DbClient, id: number, params: FinishIngestRunParams) {
-  return db.update(ingestRuns)
+export async function finishIngestRun(
+  db: DbClient,
+  id: number,
+  params: FinishIngestRunParams
+) {
+  return await db
+    .update(ingestRuns)
     .set({
       finishedAt: new Date().toISOString(),
       status: params.status,
@@ -30,7 +36,7 @@ export function finishIngestRun(db: DbClient, id: number, params: FinishIngestRu
       emailsProcessed: params.emailsProcessed,
       articlesUpserted: params.articlesUpserted,
       articlesFailed: params.articlesFailed,
-      errorSummary: params.errorSummary ?? null
+      errorSummary: params.errorSummary ?? null,
     })
     .where(eq(ingestRuns.id, id))
     .run();
