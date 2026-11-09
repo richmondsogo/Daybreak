@@ -24,9 +24,9 @@ import { MarkReadOnView } from "./mark-read-on-view";
 
 export const dynamic = "force-dynamic";
 
-const getArticleForRequest = cache((id: number) => {
+const getArticleForRequest = cache(async (id: number) => {
   const db = getDb();
-  return getArticleById(db, id);
+  return await getArticleById(db, id);
 });
 
 const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
@@ -69,7 +69,7 @@ export async function generateMetadata({
   if (isNaN(id)) {
     return { title: "Article not found" };
   }
-  const article = getArticleForRequest(id);
+  const article = await getArticleForRequest(id);
   return { title: article?.title ?? "Article not found" };
 }
 
@@ -81,7 +81,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
     return <ArticleNotFound />;
   }
 
-  const article = getArticleForRequest(id);
+  const article = await getArticleForRequest(id);
 
   if (!article) {
     return <ArticleNotFound />;

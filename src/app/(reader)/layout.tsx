@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ReaderLayout({ children }: { children: ReactNode }) {
   const db = getDb();
-  const articles = listArticles(db);
+  const articles = await listArticles(db);
 
   return <ReaderShell articles={articles}>{children}</ReaderShell>;
 }

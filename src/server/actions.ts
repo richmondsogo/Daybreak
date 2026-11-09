@@ -10,6 +10,6 @@ const idSchema = z.number().int().positive();
 export async function markArticleRead(id: number): Promise<void> {
   const parsedId = idSchema.parse(id);
   const db = getDb();
-  setArticleRead(db, parsedId, true);
+  await setArticleRead(db, parsedId, true);
   revalidatePath("/", "layout");
 }

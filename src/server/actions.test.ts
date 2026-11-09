@@ -9,7 +9,7 @@ vi.mock("@/db/instance", () => ({
 }));
 
 vi.mock("@/db/articles", () => ({
-  setArticleRead: vi.fn(),
+  setArticleRead: vi.fn().mockResolvedValue({}),
 }));
 
 import { revalidatePath } from "next/cache";
