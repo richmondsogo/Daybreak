@@ -15,6 +15,7 @@
     "purge-old-articles": "tsx src/cli/purge-old-articles.ts",
     "inspect-db": "tsx src/cli/inspect-db.ts",
     "db:generate": "drizzle-kit generate",
+    "db:migrate-to-turso": "tsx src/cli/migrate-to-turso.ts",
     "backfill-subtitles": "tsx src/cli/backfill-subtitles.ts"
   },
   "dependencies": {
